@@ -14,7 +14,8 @@ RUN mkdir /usr/src
 RUN curl -sL https://github.com/luvit/pcre2/archive/master.tar.gz | tar zxC /usr/src
 RUN cd /usr/src/pcre2-master/ \
  && ./configure --enable-static --prefix=/usr --enable-jit --enable-pcre2-16 --enable-pcre2-32 \
- && make install
+ && make install \
+ && strip /usr/lib/libpcre2-8.so.0
 
 FROM docker.io/library/alpine:3.7 AS openssl-builder
 RUN apk add --no-cache curl libc-dev gcc make perl linux-headers readline-dev upx
@@ -76,7 +77,7 @@ RUN  mkdir bin \
  &&  mv start.sh bin/controller
 
 FROM docker.io/library/alpine:3.7 AS haproxy-ingress-controller
-RUN apk --no-cache add socat openssl su-exec tini
+RUN apk --no-cache add socat openssl tini
 COPY --from=haproxy-builder /haproxy /usr/bin/haproxy
 COPY --from=haproxy-builder /usr/lib/libpcre2-8.so.0 /usr/lib/libpcre2-8.so.0
 COPY --from=haproxy-ingress-controller-compressor /go/src/github.com/jcmoraisjr/haproxy-ingress/rootfs/ /
