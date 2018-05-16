@@ -69,17 +69,23 @@ FROM docker.io/library/alpine:3.7 AS haproxy-ingress-controller-compressor
 RUN apk add --no-cache curl libc-dev gcc make perl linux-headers readline-dev upx
 COPY --from=haproxy-ingress-controller-builder /go/src/github.com/jcmoraisjr/haproxy-ingress/rootfs/ /go/src/github.com/jcmoraisjr/haproxy-ingress/rootfs/
 WORKDIR /go/src/github.com/jcmoraisjr/haproxy-ingress/rootfs/
-ARG  UPX_ARGS=-6
+
+ARG  UPX_ARGS=-8
+
 ENV  UPX_ARGS=${UPX_ARGS}
 RUN  upx ${UPX_ARGS} haproxy-ingress-controller
 RUN  sed -e 's|bind\ \*:443\(.*\)$|bind\ \*:443\1 allow-0rtt|' -i /go/src/github.com/jcmoraisjr/haproxy-ingress/rootfs/etc/haproxy/template/haproxy.tmpl
 RUN  mkdir bin \
- &&  mv start.sh bin/controller
+ &&  mv start.sh bin/controller \
+ &&  rm -f Dockerfile
 
-FROM docker.io/library/alpine:3.7 AS haproxy-ingress-controller
-RUN apk --no-cache add socat openssl tini
-COPY --from=haproxy-builder /haproxy /usr/bin/haproxy
-COPY --from=haproxy-builder /usr/lib/libpcre2-8.so.0 /usr/lib/libpcre2-8.so.0
+FROM docker.io/library/alpine:3.7 AS haproxy-ingress-controller-composer
+RUN  apk add --initdb --repositories-file /etc/apk/repositories --root /haproxy-ingress-controller-image --no-cache --keys-dir /etc/apk/keys busybox tini apk-tools socat
+COPY --from=haproxy-builder /haproxy /haproxy-ingress-controller-image//usr/bin/haproxy
+COPY --from=haproxy-builder /usr/lib/libpcre2-8.so.0 /haproxy-ingress-controller-image//usr/lib/libpcre2-8.so.0
+
+FROM scratch AS haproxy-ingress-controller
+COPY --from=haproxy-ingress-controller-composer /haproxy-ingress-controller-image /
 COPY --from=haproxy-ingress-controller-compressor /go/src/github.com/jcmoraisjr/haproxy-ingress/rootfs/ /
 
 ENTRYPOINT ["tini", "--","controller"]
